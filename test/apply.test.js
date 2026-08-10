@@ -193,6 +193,7 @@ function createHarness({
     stateSaves: 0,
     roleCreateOptions: [],
     channelCreateOptions: [],
+    channelPositionCalls: [],
     savedPath: null,
     savedState: null,
   };
@@ -220,6 +221,14 @@ function createHarness({
     },
     channels: {
       cache: channelCache,
+      async fetch() {
+        return channelCache;
+      },
+      async setPositions(assignments) {
+        stats.timeline.push("mutation:channel:positions");
+        stats.channelPositionCalls.push(assignments);
+        return channelCache;
+      },
       async create(options) {
         stats.timeline.push("mutation:channel:create");
         stats.channelCreateAttempts += 1;
@@ -539,6 +548,54 @@ test("apply converges around an explicit existing role deferral", async () => {
   assert.equal(result.plan.hasDeferred, true);
   assert.equal(result.plan.entries[0].status, "DEFERRED");
   assert.equal(harness.stats.stateSaves, 1);
+});
+
+test("channel reorder assigns positions independently for text and voice", async () => {
+  const textA = { id: "700000000000000301", type: 0, position: 1 };
+  const textB = { id: "700000000000000302", type: 15, position: 0 };
+  const voice = { id: "700000000000000303", type: 2, position: 0 };
+  const reorder = operation({
+    id: "channel.order.main",
+    phase: 5,
+    action: "REORDER_CHANNELS",
+    targetType: "channelHierarchy",
+    targetKey: "main",
+    payload: { keys: ["textA", "textB", "voice"] },
+  });
+  const firstPlan = plannerOutput({
+    operations: [reorder],
+    roles: { everyone: GUILD_ID },
+    channels: {
+      textA: textA.id,
+      textB: textB.id,
+      voice: voice.id,
+    },
+  });
+  const finalPlan = plannerOutput({
+    roles: { everyone: GUILD_ID },
+    channels: {
+      textA: textA.id,
+      textB: textB.id,
+      voice: voice.id,
+    },
+  });
+  const snapshot = safeSnapshot();
+  snapshot.channels = [
+    { ...textA, name: "a", manageable: true },
+    { ...textB, name: "b", manageable: true },
+    { ...voice, name: "voice", manageable: true },
+  ];
+  const harness = createHarness({ plans: [firstPlan, finalPlan], snapshot });
+  harness.guild.channels.cache.set(textA.id, textA);
+  harness.guild.channels.cache.set(textB.id, textB);
+  harness.guild.channels.cache.set(voice.id, voice);
+
+  await applyPlan(applyOptions(harness));
+
+  assert.deepEqual(harness.stats.channelPositionCalls, [[
+    { channel: textA.id, position: 0 },
+    { channel: textB.id, position: 1 },
+  ]]);
 });
 
 test("state is not written when post-apply verification does not converge", async () => {

@@ -112,6 +112,12 @@ function hasOverwritePatch(overwrites) {
   return Object.keys(overwrites ?? {}).length > 0;
 }
 
+function channelPositionGroup(typeName) {
+  return ["GuildVoice", "GuildStageVoice"].includes(typeName)
+    ? "voice"
+    : "text";
+}
+
 function buildRolePlan({ config, snapshot, state, entries, operations }) {
   const desired = roleDesiredItems(config);
   const current = snapshot.roles.filter((role) => role.id !== snapshot.guild.id);
@@ -772,20 +778,33 @@ function buildChannelPlan({
     const desiredChildren = desired
       .filter((channel) => channel.categoryKey === category.key)
       .sort((left, right) => left.order - right.order);
-    const matchedChildren = desiredChildren
-      .filter((channel) => result.matches.has(channel.key))
-      .sort(
-        (left, right) =>
-          result.matches.get(left.key).current.position -
-          result.matches.get(right.key).current.position,
-      )
-      .map((channel) => channel.key);
-    const desiredMatched = desiredChildren
-      .filter((channel) => result.matches.has(channel.key))
-      .map((channel) => channel.key);
+    const matchedDesiredChildren = desiredChildren.filter((channel) =>
+      result.matches.has(channel.key),
+    );
+    // Discord normalizes text/forum and voice/stage positions independently.
+    // Comparing one mixed sequence creates perpetual reorder operations because
+    // the first text and first voice channel may both legitimately be position 0.
+    const positionGroups = ["text", "voice"];
+    const groupOrderDiffers = positionGroups.some((group) => {
+      const desiredMatched = matchedDesiredChildren
+        .filter((channel) => channelPositionGroup(channel.type) === group)
+        .map((channel) => channel.key);
+      const matchedChildren = matchedDesiredChildren
+        .filter((channel) => channelPositionGroup(channel.type) === group)
+        .sort(
+          (left, right) =>
+            result.matches.get(left.key).current.position -
+              result.matches.get(right.key).current.position ||
+            result.matches
+              .get(left.key)
+              .current.id.localeCompare(result.matches.get(right.key).current.id),
+        )
+        .map((channel) => channel.key);
+      return !sameSequence(matchedChildren, desiredMatched);
+    });
     if (
       desiredChildren.some((channel) => !result.matches.has(channel.key)) ||
-      !sameSequence(matchedChildren, desiredMatched)
+      groupOrderDiffers
     ) {
       operations.push(
         operation({

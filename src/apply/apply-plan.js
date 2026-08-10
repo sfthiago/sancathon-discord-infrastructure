@@ -194,6 +194,14 @@ function positionAssignments(items, highestFirst = false) {
     .filter(({ resource, position }) => Number(resource.position) !== position);
 }
 
+function channelPositionGroup(channel) {
+  return [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(
+    channel.type,
+  )
+    ? "voice"
+    : "text";
+}
+
 function mergeForumTags(desiredTags, currentTags) {
   const usedCurrentIndexes = new Set();
   const merged = [];
@@ -321,10 +329,14 @@ async function applyChannelReorder(guild, operation, resolution) {
     return { key, resource };
   });
 
-  // The planner models one relative order for all managed children in the
-  // category. Reuse only their existing slots, including mixed channel types,
-  // so unmanaged channels keep their relative placement.
-  const assignments = positionAssignments(managed);
+  // Discord maintains independent position slots for text/forum channels and
+  // voice/stage channels. Reorder inside each group so a legitimate text=0 and
+  // voice=0 pair does not produce endless churn or cross-type assignments.
+  const assignments = ["text", "voice"].flatMap((group) =>
+    positionAssignments(
+      managed.filter(({ resource }) => channelPositionGroup(resource) === group),
+    ),
+  );
   if (assignments.length > 0) {
     await guild.channels.setPositions(
       assignments.map(({ resource, position }) => ({

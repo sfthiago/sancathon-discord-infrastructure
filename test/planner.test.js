@@ -229,6 +229,61 @@ test("equivalent desired and current states produce an idempotent empty plan", (
   assert.ok(plan.entries.every((entry) => entry.status === "OK"));
 });
 
+test("text and voice positions are compared in independent Discord groups", () => {
+  const config = desiredConfig();
+  config.channels.channels.push(
+    {
+      key: "questions",
+      name: "perguntas",
+      aliases: [],
+      type: "GuildForum",
+      categoryKey: "main",
+      order: 1,
+      overwrites: [],
+    },
+    {
+      key: "lounge",
+      name: "convivencia",
+      aliases: [],
+      type: "GuildVoice",
+      categoryKey: "main",
+      order: 2,
+      overwrites: [],
+    },
+  );
+  const snapshot = currentSnapshot();
+  const base = snapshot.channels[0];
+  snapshot.channels.push(
+    {
+      ...structuredClone(base),
+      id: "100000000000000012",
+      name: "perguntas",
+      type: 15,
+      typeName: "GuildForum",
+      position: 1,
+    },
+    {
+      ...structuredClone(base),
+      id: "100000000000000013",
+      name: "convivencia",
+      type: 2,
+      typeName: "GuildVoice",
+      position: 0,
+      rateLimitPerUser: 0,
+    },
+  );
+  const state = resourceState();
+  state.channels.questions = "100000000000000012";
+  state.channels.lounge = "100000000000000013";
+
+  const plan = buildPlan({ config, snapshot, state });
+
+  assert.equal(
+    plan.operations.some((item) => item.action === "REORDER_CHANNELS"),
+    false,
+  );
+});
+
 test("input array and permission order do not create false updates", () => {
   const config = desiredConfig();
   const snapshot = currentSnapshot();
