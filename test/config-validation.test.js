@@ -195,3 +195,29 @@ test("disabled optional channels do not fail active configuration validation", (
 
   assert.equal(validateConfig(candidate).isValid, true);
 });
+
+test("entrance log is a private read-only organization channel", () => {
+  const channel = config.channels.channels.find(
+    (item) => item.key === "entranceLog",
+  );
+  assert.ok(channel);
+  assert.equal(channel.name, "portaria");
+  assert.equal(channel.type, "GuildText");
+  assert.equal(channel.categoryKey, "organizationArea");
+
+  const overwriteByTarget = new Map(
+    channel.overwrites.map((overwrite) => [overwrite.target, overwrite]),
+  );
+  assert.deepEqual(overwriteByTarget.get("everyone"), {
+    target: "everyone",
+    allow: [],
+    deny: ["SendMessages"],
+  });
+  for (const target of ["organization", "moderation"]) {
+    assert.deepEqual(overwriteByTarget.get(target), {
+      target,
+      allow: ["ViewChannel", "ReadMessageHistory"],
+      deny: [],
+    });
+  }
+});

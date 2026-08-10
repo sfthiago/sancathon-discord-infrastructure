@@ -509,12 +509,37 @@ export const channels = [
     order: 5,
   },
   {
+    key: "entranceLog",
+    name: "portaria",
+    aliases: [],
+    type: "GuildText",
+    categoryKey: "organizationArea",
+    order: 6,
+    overwrites: [
+      {
+        target: "everyone",
+        allow: [],
+        deny: ["SendMessages"],
+      },
+      {
+        target: "organization",
+        allow: ["ViewChannel", "ReadMessageHistory"],
+        deny: [],
+      },
+      {
+        target: "moderation",
+        allow: ["ViewChannel", "ReadMessageHistory"],
+        deny: [],
+      },
+    ],
+  },
+  {
     key: "organizationVoice",
     name: "sala-da-organizacao",
     aliases: [],
     type: "GuildVoice",
     categoryKey: "organizationArea",
-    order: 6,
+    order: 7,
   },
 ];
 

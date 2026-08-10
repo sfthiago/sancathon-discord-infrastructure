@@ -61,6 +61,8 @@ O CI executa testes e verificação de sintaxe em todo push e pull request para 
 
 Vulnerabilidades devem seguir [SECURITY.md](SECURITY.md). Nunca publique tokens, `.env`, relatórios privados ou arquivos de state em issues e pull requests.
 
+Este projeto é distribuído sob a [licença MIT](LICENSE).
+
 O apply executa cargos, hierarquia, categorias, canais, parent/posição, overwrites e configurações específicas em fases. Depois ele lê a guild novamente e refaz o planejamento. O state só é salvo atomicamente em `.state/discord-resources.json` quando o plano convergiu.
 
 Quando um cargo existente ainda estiver acima do bot, `--defer-role <key>` cria uma exceção explícita e temporária. A edição desse cargo, sua participação na reordenação e os overwrites direcionados a ele ficam como `DEFERRED`; todas as demais operações continuam sujeitas ao preflight. O argumento não aceita cargos ausentes, `everyone` nem cargos com erro de planejamento. Repita o argumento para mais de uma key. Remova-o assim que a hierarquia for liberada e rode primeiro o dry-run normal.
@@ -86,6 +88,8 @@ Alterar permissões ou a posição do cargo do bot no servidor **não exige rein
 - [config/server.js](config/server.js): guild esperada, equipes, feature flags e políticas de segurança;
 - [config/roles.js](config/roles.js): cargos, cores, permissões e hierarquia relativa;
 - [config/channels.js](config/channels.js): categorias, canais, slowmode, fóruns, tags e overwrites.
+
+O canal nativo `portaria`, usado pelo Discord para mensagens de entrada, é gerenciado como log privado dentro de `🔒 ORGANIZAÇÃO SIEEL`. `@everyone` não pode visualizá-lo, `Organização` e `Moderação` podem visualizar e ler o histórico, e o envio de mensagens permanece negado pelo overwrite de `@everyone`.
 
 Feature flags atuais:
 
