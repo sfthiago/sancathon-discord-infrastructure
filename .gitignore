@@ -1,0 +1,11 @@
+.env
+node_modules/
+reports/
+.state/
+.tools/
+*.clixml
+credentials.*
+discord-roles.csv
+discord-channel-permissions.csv
+discord-raw-report.json
+.test-output-*/

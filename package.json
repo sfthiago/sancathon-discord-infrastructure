@@ -1,0 +1,21 @@
+{
+  "name": "sancathon-discord-infrastructure",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Infrastructure as Code e auditoria do Discord do Sancathon 2026.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.17.0"
+  },
+  "scripts": {
+    "setup": "node setup.js --dry-run",
+    "dry-run": "node setup.js --dry-run",
+    "apply": "node setup.js --apply",
+    "audit": "node audit.js",
+    "test": "node --test",
+    "check": "node scripts/check-syntax.js"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0"
+  }
+}
