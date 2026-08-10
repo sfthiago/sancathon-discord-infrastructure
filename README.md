@@ -1,6 +1,6 @@
 # Sancathon Discord Infrastructure
 
-Ferramenta de Infrastructure as Code e auditoria do servidor **Sancathon 2026 | SIEEL**. Ela compara a configuração versionada com o estado atual do Discord, mostra um plano e só altera o servidor quando `--apply` é informado explicitamente.
+Ferramenta de Infrastructure as Code e auditoria do servidor **Sancathon 2026**. Ela compara a configuração versionada com o estado atual do Discord, mostra um plano e só altera o servidor quando `--apply` é informado explicitamente.
 
 O primeiro release é deliberadamente não destrutivo: recursos extras aparecem como `UNMANAGED`; nenhum cargo, categoria, canal, membro ou overwrite desconhecido é excluído.
 
@@ -54,6 +54,12 @@ node audit.js
 npm test
 npm run check
 ```
+
+## Segurança do repositório
+
+O CI executa testes e verificação de sintaxe em todo push e pull request para `main`. O Dependabot verifica semanalmente dependências npm e GitHub Actions. As Actions são fixadas por SHA, o workflow possui somente permissão de leitura e nenhuma credencial do Discord é usada no CI.
+
+Vulnerabilidades devem seguir [SECURITY.md](SECURITY.md). Nunca publique tokens, `.env`, relatórios privados ou arquivos de state em issues e pull requests.
 
 O apply executa cargos, hierarquia, categorias, canais, parent/posição, overwrites e configurações específicas em fases. Depois ele lê a guild novamente e refaz o planejamento. O state só é salvo atomicamente em `.state/discord-resources.json` quando o plano convergiu.
 

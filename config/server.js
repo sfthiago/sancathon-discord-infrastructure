@@ -13,7 +13,7 @@ export const teams = [
 
 export const serverConfig = {
   key: "sancathon2026",
-  expectedGuildName: "Sancathon 2026 | SIEEL",
+  expectedGuildName: "Sancathon 2026",
   environment: {
     tokenVariable: "DISCORD_TOKEN",
     guildIdVariable: "GUILD_ID",
