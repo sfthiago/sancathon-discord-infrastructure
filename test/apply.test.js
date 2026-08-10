@@ -110,6 +110,7 @@ function operation({
 }
 
 function plannerOutput({
+  entries = [],
   operations = [],
   diagnostics = [],
   hasErrors = false,
@@ -118,7 +119,7 @@ function plannerOutput({
   channels = {},
 } = {}) {
   return {
-    entries: [],
+    entries,
     operations,
     diagnostics,
     hasChanges: operations.length > 0,
@@ -438,6 +439,106 @@ test("successful apply respects dependencies and writes state only after converg
   assert.equal(result.planAfter, result.plan);
   assert.deepEqual(result.snapshot, safeSnapshot());
   assert.deepEqual(result.snapshotAfter, result.snapshot);
+});
+
+test("apply converges around an explicit existing role deferral", async () => {
+  const administrationId = "700000000000000055";
+  const deferredConfig = configFixture();
+  deferredConfig.roles.hierarchy = ["administration"];
+  deferredConfig.roles.roles[1] = {
+    key: "administration",
+    kind: "standard",
+    name: "Administração",
+    aliases: ["Organização"],
+    color: "#A61B1B",
+    hoist: false,
+    mentionable: false,
+    permissions: [],
+  };
+  deferredConfig.channels.categories[0].overwrites = [{
+    target: "administration",
+    allow: ["ViewChannel"],
+    deny: [],
+  }];
+
+  const administrationEntry = {
+    id: "role.administration",
+    status: "UPDATE",
+    resourceType: "role",
+    resourceKey: "administration",
+    resourceId: administrationId,
+    name: "Administração",
+    changes: [{ path: "name", from: "Organização", to: "Administração" }],
+  };
+  const deferredUpdate = operation({
+    id: "role.administration.update",
+    phase: 1,
+    action: "UPDATE_ROLE",
+    targetType: "role",
+    targetKey: "administration",
+    payload: { name: "Administração" },
+  });
+  const firstPlan = plannerOutput({
+    entries: [
+      administrationEntry,
+      {
+        id: "category.main",
+        status: "CREATE",
+        resourceType: "category",
+        resourceKey: "main",
+        resourceId: null,
+        name: "CATEGORIA",
+        changes: [{ path: "resource", from: null, to: "CATEGORIA" }],
+      },
+    ],
+    operations: [deferredUpdate, createCategoryOperation()],
+    roles: { everyone: GUILD_ID, administration: administrationId },
+    categories: { main: null },
+  });
+  const finalPlan = plannerOutput({
+    entries: [
+      administrationEntry,
+      {
+        id: "category.main",
+        status: "OK",
+        resourceType: "category",
+        resourceKey: "main",
+        resourceId: "70000000000000021",
+        name: "CATEGORIA",
+        changes: [],
+      },
+    ],
+    operations: [deferredUpdate],
+    roles: { everyone: GUILD_ID, administration: administrationId },
+    categories: { main: "70000000000000021" },
+  });
+  const snapshot = safeSnapshot();
+  snapshot.roles.push({
+    id: administrationId,
+    name: "Organização",
+    position: 200,
+    permissions: "0",
+    managed: false,
+    editable: false,
+  });
+  const harness = createHarness({ plans: [firstPlan, finalPlan], snapshot });
+
+  const result = await applyPlan(applyOptions(harness, {
+    config: deferredConfig,
+    deferRoleKeys: ["administration"],
+  }));
+
+  assert.equal(result.applied, true);
+  assert.equal(harness.stats.roleCreateAttempts, 0);
+  assert.equal(harness.stats.channelCreateAttempts, 1);
+  assert.deepEqual(
+    harness.stats.channelCreateOptions[0].permissionOverwrites,
+    [],
+  );
+  assert.equal(result.plan.operations.length, 0);
+  assert.equal(result.plan.hasDeferred, true);
+  assert.equal(result.plan.entries[0].status, "DEFERRED");
+  assert.equal(harness.stats.stateSaves, 1);
 });
 
 test("state is not written when post-apply verification does not converge", async () => {

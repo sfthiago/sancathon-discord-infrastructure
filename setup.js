@@ -14,6 +14,7 @@ import {
 } from "./src/discord/client.js";
 import { createDiscordSnapshot } from "./src/discord/snapshot.js";
 import { buildPlan } from "./src/planner/build-plan.js";
+import { deferPlanRoles } from "./src/planner/defer-plan.js";
 import { formatPlan } from "./src/planner/format-plan.js";
 import { loadResourceState } from "./src/state/resource-state.js";
 
@@ -59,7 +60,28 @@ function withDiagnostics(plan, additionalDiagnostics = []) {
 
 export function parseSetupArguments(argumentsList) {
   const allowed = new Set(["--dry-run", "--apply", "--help", "-h"]);
-  const unknown = argumentsList.filter((argument) => !allowed.has(argument));
+  const unknown = [];
+  const deferRoleKeys = [];
+  for (let index = 0; index < argumentsList.length; index += 1) {
+    const argument = argumentsList[index];
+    if (allowed.has(argument)) continue;
+    if (argument === "--defer-role") {
+      const value = argumentsList[index + 1];
+      if (!value || value.startsWith("--")) {
+        throw new Error("--defer-role exige a key de um cargo.");
+      }
+      deferRoleKeys.push(value);
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith("--defer-role=")) {
+      const value = argument.slice("--defer-role=".length).trim();
+      if (!value) throw new Error("--defer-role exige a key de um cargo.");
+      deferRoleKeys.push(value);
+      continue;
+    }
+    unknown.push(argument);
+  }
   if (unknown.length > 0) {
     throw new Error(`Argumento desconhecido: ${unknown.join(", ")}.`);
   }
@@ -69,6 +91,7 @@ export function parseSetupArguments(argumentsList) {
   return {
     apply: argumentsList.includes("--apply"),
     help: argumentsList.includes("--help") || argumentsList.includes("-h"),
+    deferRoleKeys: [...new Set(deferRoleKeys)],
   };
 }
 
@@ -78,6 +101,9 @@ function printHelp() {
     "  node setup.js              # dry-run (padrao)",
     "  node setup.js --dry-run    # somente planeja",
     "  node setup.js --apply      # aplica o plano",
+    "  node setup.js --dry-run --defer-role administration",
+    "  node setup.js --apply --defer-role administration",
+    "                              # adia somente o cargo acima do bot",
     "",
     "Nenhum modo exclui cargos, categorias, canais ou membros.",
   ].join("\n"));
@@ -103,6 +129,7 @@ export async function runSetup({
   apply = false,
   cwd = process.cwd(),
   desiredConfig = config,
+  deferRoleKeys = [],
 } = {}) {
   const validation = validateConfig(desiredConfig);
   if (!validation.isValid) {
@@ -122,7 +149,10 @@ export async function runSetup({
     await loginDiscordClient(client, token);
     const resources = await fetchGuildResources(client, guildId);
     const snapshot = createDiscordSnapshot(resources);
-    const planned = buildPlan({ config: desiredConfig, snapshot, state });
+    const planned = deferPlanRoles(
+      buildPlan({ config: desiredConfig, snapshot, state }),
+      { roleKeys: deferRoleKeys },
+    );
     const preflight = preflightPlan({ plan: planned, snapshot });
     const plan = withDiagnostics(planned, [
       ...validation.warnings,
@@ -145,7 +175,10 @@ export async function runSetup({
       if (plan.hasErrors) {
         console.log("Corrija os erros acima antes de usar --apply.");
       } else if (plan.hasChanges) {
-        console.log("Run with --apply to apply this plan.");
+        const deferredArguments = deferRoleKeys
+          .map((key) => ` --defer-role ${key}`)
+          .join("");
+        console.log(`Run with --apply${deferredArguments} to apply this plan.`);
       }
       return { mode: "dry-run", snapshot, plan, preflight };
     }
@@ -166,6 +199,7 @@ export async function runSetup({
       statePath,
       reason: "Sancathon Discord Infrastructure apply",
       onOperation: operationLogger,
+      deferRoleKeys,
     });
 
     console.log("");
@@ -188,7 +222,10 @@ async function main() {
     printHelp();
     return;
   }
-  await runSetup({ apply: options.apply });
+  await runSetup({
+    apply: options.apply,
+    deferRoleKeys: options.deferRoleKeys,
+  });
 }
 
 function printSetupError(error) {

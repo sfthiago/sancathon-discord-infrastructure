@@ -43,6 +43,10 @@ node setup.js --dry-run
 # executa o plano após validação e preflight
 node setup.js --apply
 
+# revisa/aplica o restante e adia temporariamente o cargo Administração
+node setup.js --dry-run --defer-role administration
+node setup.js --apply --defer-role administration
+
 # auditoria somente leitura
 node audit.js
 
@@ -52,6 +56,8 @@ npm run check
 ```
 
 O apply executa cargos, hierarquia, categorias, canais, parent/posição, overwrites e configurações específicas em fases. Depois ele lê a guild novamente e refaz o planejamento. O state só é salvo atomicamente em `.state/discord-resources.json` quando o plano convergiu.
+
+Quando um cargo existente ainda estiver acima do bot, `--defer-role <key>` cria uma exceção explícita e temporária. A edição desse cargo, sua participação na reordenação e os overwrites direcionados a ele ficam como `DEFERRED`; todas as demais operações continuam sujeitas ao preflight. O argumento não aceita cargos ausentes, `everyone` nem cargos com erro de planejamento. Repita o argumento para mais de uma key. Remova-o assim que a hierarquia for liberada e rode primeiro o dry-run normal.
 
 ## Permissões e hierarquia do bot
 

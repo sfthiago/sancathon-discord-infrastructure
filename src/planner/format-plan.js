@@ -3,6 +3,7 @@ const symbols = {
   UPDATE: "~",
   OK: "=",
   UNMANAGED: "?",
+  DEFERRED: ">",
   ERROR: "!",
 };
 
@@ -68,6 +69,7 @@ export function formatPlan(plan, { guildName, mode }) {
   lines.push("--------------------------------", "", "SUMMARY", "");
   lines.push(`CREATE    ${plan.summary.create}`);
   lines.push(`UPDATE    ${plan.summary.update}`);
+  lines.push(`DEFERRED  ${plan.summary.deferred ?? 0}`);
   lines.push(`OK        ${plan.summary.ok}`);
   lines.push(`UNMANAGED ${plan.summary.unmanaged}`);
   lines.push(`ERROR     ${plan.summary.error}`);

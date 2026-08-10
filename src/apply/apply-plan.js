@@ -13,6 +13,7 @@ import {
   buildNextResourceState,
   buildPlan,
 } from "../planner/build-plan.js";
+import { deferPlanRoles } from "../planner/defer-plan.js";
 import { materializeOverwrites } from "../planner/overwrites.js";
 import {
   emptyResourceState,
@@ -134,10 +135,18 @@ function desiredOverwriteMap(config, type, key) {
   return materializeOverwrites(category.overwrites, channel.overwrites);
 }
 
-function createOverwriteData(config, type, key, resolution, operationId) {
+function createOverwriteData(
+  config,
+  type,
+  key,
+  resolution,
+  operationId,
+  deferredRoleKeys = new Set(),
+) {
   const desired = desiredOverwriteMap(config, type, key);
   const overwrites = [];
   for (const [roleKey, patch] of Object.entries(desired)) {
+    if (deferredRoleKeys.has(roleKey)) continue;
     const roleId = requireResolvedId(
       resolution,
       "role",
@@ -328,7 +337,7 @@ async function applyChannelReorder(guild, operation, resolution) {
 }
 
 async function executeOperation(context, operation) {
-  const { config, guild, reason, resolution } = context;
+  const { config, deferredRoleKeys, guild, reason, resolution } = context;
   const payload = operation.payload ?? {};
 
   switch (operation.action) {
@@ -374,6 +383,7 @@ async function executeOperation(context, operation) {
           operation.targetKey,
           resolution,
           operation.id,
+          deferredRoleKeys,
         ),
         reason,
       });
@@ -414,6 +424,7 @@ async function executeOperation(context, operation) {
           operation.targetKey,
           resolution,
           operation.id,
+          deferredRoleKeys,
         ),
         reason,
       });
@@ -564,6 +575,7 @@ async function notify(onOperation, event) {
 
 async function executePhases({
   config,
+  deferredRoleKeys,
   guild,
   onOperation,
   pass,
@@ -608,7 +620,7 @@ async function executePhases({
       });
       try {
         const details = await executeOperation(
-          { config, guild, reason, resolution },
+          { config, deferredRoleKeys, guild, reason, resolution },
           operation,
         );
         completed.add(operation.id);
@@ -693,6 +705,7 @@ export async function applyPlan({
   reason = "Sancathon 2026 infrastructure reconciliation",
   onOperation = null,
   maxPasses = 3,
+  deferRoleKeys = [],
   services = {},
 }) {
   if (!client) throw new TypeError("client e obrigatorio para apply.");
@@ -708,6 +721,12 @@ export async function applyPlan({
   if (typeof statePath !== "string" || statePath.length === 0) {
     throw new TypeError("statePath e obrigatorio para salvar o state.");
   }
+  if (!Array.isArray(deferRoleKeys) && !(deferRoleKeys instanceof Set)) {
+    throw new TypeError("deferRoleKeys deve ser um array ou Set.");
+  }
+  const deferredRoleKeySet = new Set(
+    [...deferRoleKeys].map((key) => String(key).trim()).filter(Boolean),
+  );
   if (
     state?.guildId &&
     String(state.guildId) !== String(guildId)
@@ -759,11 +778,14 @@ export async function applyPlan({
       );
     }
     const snapshot = implementation.createDiscordSnapshot(resources);
-    const plan = implementation.buildPlan({
-      config,
-      snapshot,
-      state: currentState,
-    });
+    const plan = deferPlanRoles(
+      implementation.buildPlan({
+        config,
+        snapshot,
+        state: currentState,
+      }),
+      { roleKeys: deferredRoleKeySet },
+    );
     plans.push(plan);
 
     const repeatedCreate = plan.operations.find(
@@ -805,6 +827,7 @@ export async function applyPlan({
 
     await executePhases({
       config,
+      deferredRoleKeys: deferredRoleKeySet,
       guild: resources.guild,
       onOperation,
       pass,
@@ -826,11 +849,14 @@ export async function applyPlan({
       const verificationSnapshot = implementation.createDiscordSnapshot(
         verificationResources,
       );
-      const verificationPlan = implementation.buildPlan({
-        config,
-        snapshot: verificationSnapshot,
-        state: currentState,
-      });
+      const verificationPlan = deferPlanRoles(
+        implementation.buildPlan({
+          config,
+          snapshot: verificationSnapshot,
+          state: currentState,
+        }),
+        { roleKeys: deferredRoleKeySet },
+      );
       if (verificationPlan.hasErrors || verificationPlan.operations.length > 0) {
         throw new ApplyConvergenceError(
           `O Discord ainda apresenta ${verificationPlan.operations.length} operacoes pendentes apos ${maxPasses} passagem(ns).`,
